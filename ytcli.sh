@@ -3,11 +3,12 @@
 # ytcli — download YouTube videos on a Mac and send them to an Android phone.
 #
 # Usage:
-#   ytcli.sh [--share | --open] [--clipboard]
+#   ytcli.sh [--clipboard]
 #
-#   --share       push the downloaded folder to the phone via adb (default)
-#   --open        reveal the downloaded folder in Finder instead
 #   --clipboard   read links from the clipboard instead of opening an editor
+#
+# After downloading, the folder opens in Finder and you're asked whether to
+# push it to the phone via adb.
 #
 set -euo pipefail
 
@@ -20,13 +21,10 @@ MAX_HEIGHT=1080
 
 # --- argument parsing --------------------------------------------------------
 
-destination="share"   # default
 use_clipboard=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --share)     destination="share" ;;
-    --open)      destination="open" ;;
     --clipboard) use_clipboard=true ;;
     -h|--help)
       sed -n '3,11p' "$0" | sed 's/^# \{0,1\}//'
@@ -43,15 +41,14 @@ done
 # --- dependency checks -------------------------------------------------------
 
 command -v yt-dlp >/dev/null 2>&1 || { echo "ytcli: yt-dlp is not installed (brew install yt-dlp)" >&2; exit 1; }
-if [[ "$destination" == "share" ]]; then
-  command -v adb >/dev/null 2>&1 || { echo "ytcli: adb is not installed (brew install --cask android-platform-tools)" >&2; exit 1; }
-fi
 
 # --- keep yt-dlp up to date --------------------------------------------------
 
 echo "==> Checking for yt-dlp updates..."
 if command -v brew >/dev/null 2>&1; then
-  brew upgrade yt-dlp || true   # no-op if already current; don't abort the run on a hiccup
+  # HOMEBREW_NO_AUTO_UPDATE keeps this from updating Homebrew itself or any
+  # other formula — only yt-dlp is touched.
+  HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade yt-dlp || true   # no-op if current; don't abort on a hiccup
 else
   echo "    brew not found; skipping update check."
 fi
@@ -67,8 +64,8 @@ if $use_clipboard; then
   done < <(pbpaste)
 else
   touch "$LINKS_FILE"
-  open -e "$LINKS_FILE"   # open in TextEdit
-  echo "==> Editing $LINKS_FILE in TextEdit."
+  open "$LINKS_FILE"   # open in the default editor for .txt files
+  echo "==> Editing $LINKS_FILE."
   echo "    Paste one link per line, save the file, then come back here."
   read -r -p "    Press Enter once the links are saved... " _
   while IFS= read -r line; do
@@ -107,16 +104,24 @@ yt-dlp \
 
 # --- deliver -----------------------------------------------------------------
 
-if [[ "$destination" == "open" ]]; then
-  echo "==> Opening $target_dir in Finder."
-  open "$target_dir"
-else
-  echo "==> Pushing to the phone..."
-  if [[ "$(adb get-state 2>/dev/null)" != "device" ]]; then
-    echo "ytcli: no phone connected via adb. Plug it in (USB debugging on) and retry." >&2
-    echo "       The download is safe at: $target_dir" >&2
-    exit 1
-  fi
-  adb push "$target_dir" "$REMOTE_DIR/"
-  echo "==> Done. Files are in $REMOTE_DIR/$stamp on the phone."
+echo "==> Opening $target_dir in Finder."
+open "$target_dir"
+
+read -r -p "==> Share this folder to the phone? [Y/n] " reply
+case "$reply" in
+  [nN]*)
+    echo "    Skipped. Files are at $target_dir"
+    exit 0
+    ;;
+esac
+
+command -v adb >/dev/null 2>&1 || { echo "ytcli: adb is not installed (brew install --cask android-platform-tools)" >&2; exit 1; }
+
+echo "==> Pushing to the phone..."
+if [[ "$(adb get-state 2>/dev/null)" != "device" ]]; then
+  echo "ytcli: no phone connected via adb. Plug it in (USB debugging on) and retry." >&2
+  echo "       The download is safe at: $target_dir" >&2
+  exit 1
 fi
+adb push "$target_dir" "$REMOTE_DIR/"
+echo "==> Done. Files are in $REMOTE_DIR/$stamp on the phone."
