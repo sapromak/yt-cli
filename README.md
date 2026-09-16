@@ -26,11 +26,28 @@ A couple of tools and a one-time handshake with the phone.
    run `adb devices`. Accept the "Always allow" prompt on the phone. Running the
    command again should list the device as `device`.
 
+## Install
+
+To run the script from anywhere as `ytcli`, drop it into `~/.local/bin`:
+
+```bash
+mkdir -p ~/.local/bin
+ln -s "$(pwd)/ytcli.sh" ~/.local/bin/ytcli
+```
+
+Using a symlink (`ln -s`) means `git pull` updates the installed command too.
+Make sure `~/.local/bin` is on your `PATH` — if `which ytcli` prints nothing,
+add this to `~/.zshrc` (or `~/.bashrc`) and restart the shell:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 ## Usage
 
 ```bash
-./ytcli.sh              # opens an editor to paste links
-./ytcli.sh --clipboard  # reads links from the clipboard instead
+ytcli              # opens an editor to paste links
+ytcli --clipboard  # reads links from the clipboard instead
 ```
 
 The run goes like this:
